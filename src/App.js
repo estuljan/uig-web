@@ -1,18 +1,29 @@
-import { useMemo, useState } from 'react';
-import dictionary from './data/mockDictionary.json';
+import { useEffect, useMemo, useState } from 'react';
 import './App.css';
 
 function App() {
   const [query, setQuery] = useState('');
+  const [words, setWords] = useState([]);
+
+  useEffect(() => {
+    fetch('https://api.uig.me/api/v1/words')
+      .then((response) => response.json())
+      .then((data) => {
+        setWords(data);
+      })
+      .catch((error) => {
+        console.error('Failed to fetch words:', error);
+      });
+  }, []);
 
   const filteredEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
     if (!normalizedQuery) {
-      return dictionary;
+      return words;
     }
 
-    return dictionary.filter((entry) => {
+    return words.filter((entry) => {
       const uyghur = entry.word_uyghur.toLowerCase();
       const english = entry.word_english.toLowerCase();
       return (
@@ -20,7 +31,7 @@ function App() {
         english.includes(normalizedQuery)
       );
     });
-  }, [query]);
+  }, [query, words]);
 
   return (
     <div className="App">
