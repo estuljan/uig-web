@@ -79,7 +79,7 @@ jobs:
             # 4. 启动新容器
             # uig-web 是个Nginx静态网站, 只需要映射 80 端口
             docker run -d \
-              -p 80:80 \
+              -p 5510:80 \
               --name ${CONTAINER_NAME} \
               --restart unless-stopped \
               ${IMAGE_TAG}
