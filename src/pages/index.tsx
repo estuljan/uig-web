@@ -1,5 +1,6 @@
 import type { GetStaticProps } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { useState } from "react";
 
 import type { PayloadResponse, Word } from "@/interfaces/word";
 
@@ -30,6 +31,14 @@ export const getStaticProps: GetStaticProps<HomeProps> = async () => {
 };
 
 export default function Home({ words }: HomeProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const normalizedSearchTerm = searchTerm.toLowerCase();
+  const filteredWords = words.filter(
+    ({ word_uyghur, word_english }) =>
+      word_uyghur.toLowerCase().includes(normalizedSearchTerm) ||
+      word_english.toLowerCase().includes(normalizedSearchTerm)
+  );
+
   return (
     <main
       className={`${geistSans.className} ${geistMono.className} min-h-screen bg-zinc-50 py-12 text-zinc-900`}
@@ -48,8 +57,16 @@ export default function Home({ words }: HomeProps) {
           </p>
         </header>
 
+        <input
+          type="text"
+          placeholder="Search in Uyghur or English..."
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20"
+        />
+
         <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-100 bg-white">
-          {words.map((word) => (
+          {filteredWords.map((word) => (
             <li key={word.id} className="flex flex-col gap-1 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xl font-medium text-zinc-900">
