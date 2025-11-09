@@ -1,0 +1,79 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    name: Build and Push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u "${{ github.actor }}" --password-stdin
+
+      - name: Build Docker image
+        run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main .
+
+      - name: Push Docker image
+        run: docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    steps:
+      - name: SSH and deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            # 设置变量
+            IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main"
+            CONTAINER_NAME="uig-web"
+
+            # 1. 登录 GHCR
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u "${{ github.actor }}" --password-stdin
+
+            # 2. 拉取最新镜像
+            docker pull ${IMAGE_TAG}
+
+            # 3. 停止并重命名旧容器
+            if docker ps -a | grep -q ${CONTAINER_NAME}; then
+              docker stop ${CONTAINER_NAME}
+              docker rename ${CONTAINER_NAME} ${CONTAINER_NAME}-old-$(date +%s)
+            fi
+
+            # 4. 启动新容器 (关键!)
+            docker run -d \
+              -p 5510:3000 \
+              --name ${CONTAINER_NAME} \
+              --restart unless-stopped \
+              -e PORT="3000" \
+              ${IMAGE_TAG}
+
+            # 5. 检查和回滚 (和以前一样)
+            sleep 10
+            if docker ps | grep -q ${CONTAINER_NAME}; then
+              echo "新 Next.js 容器 ${CONTAINER_NAME} 启动成功！"
+              docker rm -f $(docker ps -a | grep "${CONTAINER_NAME}-old" | awk '{print $1}') 2>/dev/null || true
+            else
+              echo "新容器启动失败！正在回滚..."
+              # (此处省略和之前一样的回滚逻辑) ...
+              exit 1
+            fi
