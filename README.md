@@ -1,49 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+## Uyghur Interactive Glossary
 
-## Getting Started
+UIG Web is a Next.js 16 (Pages Router) app that renders the Uyghur Interactive Glossary. The landing page (`src/pages/index.tsx`) statically fetches vocabulary from the Payload CMS running at `https://admin.uig.me` (or any endpoint you configure) and showcases Uyghur, English, and Turkish translations with optional pronunciation audio. Tailwind CSS v4 styles live in `src/styles/globals.css`.
 
-First, run the development server:
+---
+
+## Prerequisites
+
+- Node.js 20+ (align with Vercel/Next 16 requirements)
+- `pnpm` 8+ (lockfile committed)
+- Access to a Payload CMS instance seeded with the glossary collection
+
+---
+
+## Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The repo uses two-space indentation, double quotes, and arrow-function components—match that style when contributing.
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+---
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+## Environment Configuration
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+Create `.env.local` at the project root with at least one CMS base URL:
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+NEXT_PUBLIC_CMS_BASE_URL=https://admin.uig.me
+# Optional server-only fallback:
+# CMS_BASE_URL=https://admin.uig.me
+```
 
-## Configuration
+- `NEXT_PUBLIC_CMS_BASE_URL` is shared by server and client bundles and is the preferred override.
+- `CMS_BASE_URL` exists as a server-only fallback when you cannot expose the URL publicly.
+- When neither variable is set, the code falls back to `https://admin.uig.me` (`src/pages/index.tsx:21-35`), so the glossary still renders using published entries but you cannot preview draft content.
 
-The glossary page fetches data from a headless CMS. Override the default `https://admin.uig.me` base URL by setting either of the following environment variables:
+If you self-host Payload, ensure it exposes `/api/words?depth=1` and that authentication (if any) allows public reads or that you proxy the request.
 
-- `NEXT_PUBLIC_CMS_BASE_URL` (preferred: shared by server and browser bundles)
-- `CMS_BASE_URL` (optional fallback for server-only contexts)
+---
 
-When no variable is provided, the safe default remains in place so the glossary still works out of the box.
+## CMS Schema Primer
 
-## Learn More
+The UI expects the Payload “Word” collection to match `src/interfaces/word.ts`:
 
-To learn more about Next.js, take a look at the following resources:
+| Field           | Type                      | Notes                                                                 |
+| --------------- | ------------------------- | --------------------------------------------------------------------- |
+| `word_uyghur`   | string (required)         | Main Uyghur spelling                                                  |
+| `word_english`  | string (required)         | English translation                                                   |
+| `word_turkish`  | string (required)         | Turkish translation                                                   |
+| `pronunciation` | media relation or string | Optional audio clip; code resolves relative `/media/*` paths or URLs  |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+Audio playback is handled via `resolvePronunciationUrl` in `src/pages/index.tsx:44-78`. Provide either an absolute URL or a Payload media field whose `url`/`filename` points to `/media/...`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Running & Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Command       | Purpose                                                                 |
+| ------------- | ----------------------------------------------------------------------- |
+| `pnpm dev`    | Starts `http://localhost:3000` with hot reload.                         |
+| `pnpm build`  | Runs the production Next compiler and TypeScript checks.                |
+| `pnpm start`  | Serves the `.next` output (simulate production).                        |
+| `pnpm lint`   | Runs ESLint 9 with the Next config.                                     |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+API routes live under `src/pages/api`. You can confirm the boilerplate endpoint after `pnpm dev` with:
+
+```bash
+curl http://localhost:3000/api/hello
+```
+
+---
+
+## Manual QA Checklist
+
+Because we do not ship automated tests yet (`package.json` has no `test` script), add notes for these flows in every PR:
+
+1. **Glossary render** – With a fresh `pnpm build && pnpm start`, confirm CMS words appear and match the configured base URL.
+2. **Search filtering** – Type Uyghur and English terms; results should filter in real time.
+3. **Pronunciation audio** – Verify play/pause toggling and that the active row resets when audio ends.
+4. **CMS override** – Document which `NEXT_PUBLIC_CMS_BASE_URL` you used and whether the payload required authentication.
+5. **Fallback behavior** – Temporarily point the env var to an unreachable host; ensure the UI falls back to the hardcoded sample list and logs the fetch failure.
+
+---
+
+## Deployment Notes
+
+- Production deploys (Vercel, Docker, etc.) must provide `NEXT_PUBLIC_CMS_BASE_URL` via environment variables. Without it, the site will default to the public CMS and only show published entries.
+- `next.config.ts` enables `reactStrictMode` and `output: "standalone"`, so the project can be containerized directly after `pnpm build`.
+- If the CMS is down or misconfigured, `getStaticProps` throws (`src/pages/index.tsx:80-100`), and ISR will keep serving the last successful glossary. Watch build logs for “Failed to fetch glossary words from CMS.”
+
+---
+
+## Troubleshooting
+
+- **Network errors during build** – Verify the CMS host allows connections from your build environment. For protected instances, expose a read-only endpoint or run builds within the same network.
+- **Audio not playing** – Confirm the media asset returns `Content-Type: audio/*` and that CORS headers allow the origin. Absolute URLs are safest.
+- **Tailwind styles missing** – Ensure `src/styles/globals.css` is imported in `_app.tsx` (already wired) and that you did not remove the PostCSS/Tailwind pipeline.
+
+With the CMS configured and env vars in place, contributors can install dependencies, run `pnpm dev`, and start iterating on the glossary immediately.
