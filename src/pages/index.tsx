@@ -162,97 +162,91 @@ export default function Home({ words }: HomeProps) {
       word_uyghur.toLowerCase().includes(normalizedSearchTerm) ||
       word_english.toLowerCase().includes(normalizedSearchTerm)
   );
+  const hasSearchTerm = normalizedSearchTerm.trim().length > 0;
+  const visibleWords = hasSearchTerm ? filteredWords : [];
 
   return (
     <main
-      className={`${geistSans.className} ${geistMono.className} min-h-screen bg-zinc-50 py-12 text-zinc-900`}
+      className={`${geistSans.className} ${geistMono.className} flex min-h-screen items-center justify-center bg-zinc-50 px-6 py-12 text-zinc-900`}
     >
-      <section className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-8 shadow-lg shadow-zinc-200">
-        <header className="flex flex-col gap-2">
-          <p className="text-sm uppercase tracking-[0.2em] text-zinc-500">
-            Uyghur Interactive Glossary
-          </p>
-          <h1 className="text-3xl font-semibold text-zinc-900">
-            Learn everyday Uyghur vocabulary
-          </h1>
-          <p className="text-base text-zinc-600">
-            This list syncs from <code>admin.uig.me</code> and showcases Uyghur,
-            English, and Turkish word pairs fetched at build time.
-          </p>
-        </header>
-
+      <section className="w-full max-w-2xl space-y-6">
         <input
           type="text"
           placeholder="Search in Uyghur or English..."
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
-          className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20"
+          className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-4 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20"
         />
 
-        <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-100 bg-white">
-          {filteredWords.length === 0 ? (
-            <li className="flex flex-col items-center gap-2 px-6 py-10 text-center">
-              <p className="text-lg font-semibold text-zinc-900">
-                No matching entries yet
-              </p>
-              <p className="text-sm text-zinc-500">
-                Try another keyword or clear the search to see the full list.
-              </p>
-            </li>
-          ) : (
-            filteredWords.map((word) => {
-              const pronunciationUrl = resolvePronunciationUrl(
-                word.pronunciation
-              );
+        {hasSearchTerm && (
+          <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-100 bg-white">
+            {visibleWords.length === 0 ? (
+              <li className="px-6 py-10 text-center text-sm text-zinc-500">
+                No matching words found.
+              </li>
+            ) : (
+              visibleWords.map((word) => {
+                const pronunciationUrl = resolvePronunciationUrl(
+                  word.pronunciation
+                );
 
-              return (
-                <li
-                  key={word.id}
-                  className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="text-xl font-medium text-zinc-900">
-                      {word.word_uyghur}
-                    </p>
-                    <p className="text-sm text-zinc-500">
-                      Turkish: {word.word_turkish}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-start gap-2 text-left sm:items-end sm:text-right">
-                    <p className="text-lg font-semibold text-emerald-600">
-                      {word.word_english}
-                    </p>
-                    {pronunciationUrl && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handlePronunciationToggle(word.id, pronunciationUrl)
-                        }
-                        className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
-                          activeAudioId === word.id
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                            : "border-emerald-100 text-emerald-600 hover:bg-emerald-50"
-                        }`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={`h-2 w-2 rounded-full ${
+                return (
+                  <li
+                    key={word.id}
+                    className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="text-xl font-medium text-zinc-900">
+                        {word.word_uyghur}
+                      </p>
+                      <p className="text-sm text-zinc-500">
+                        Turkish: {word.word_turkish}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="text-lg font-semibold text-emerald-600">
+                        {word.word_english}
+                      </p>
+                      {pronunciationUrl && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handlePronunciationToggle(word.id, pronunciationUrl)
+                          }
+                          aria-label={
                             activeAudioId === word.id
-                              ? "bg-emerald-600"
-                              : "bg-emerald-400"
+                              ? "Stop pronunciation"
+                              : "Play pronunciation"
+                          }
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
+                            activeAudioId === word.id
+                              ? "border-emerald-500 bg-emerald-50 text-emerald-600"
+                              : "border-emerald-100 text-emerald-600 hover:bg-emerald-50"
                           }`}
-                        />
-                        {activeAudioId === word.id
-                          ? "Stop pronunciation"
-                          : "Play pronunciation"}
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })
-          )}
-        </ul>
+                        >
+                          <span className="sr-only">
+                            {activeAudioId === word.id
+                              ? "Stop pronunciation"
+                              : "Play pronunciation"}
+                          </span>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="h-5 w-5"
+                            aria-hidden="true"
+                          >
+                            <path d="M3 9.75a.75.75 0 0 1 .75-.75h2.69l2.87-2.869A1.5 1.5 0 0 1 11.379 7.5v9a1.5 1.5 0 0 1-2.07 1.389L6.44 15H3.75A.75.75 0 0 1 3 14.25zm13.58-3.583a.75.75 0 0 1 1.06 0A7.47 7.47 0 0 1 20.25 12a7.47 7.47 0 0 1-2.61 5.833.75.75 0 0 1-1.02-1.097A5.97 5.97 0 0 0 18.75 12a5.97 5.97 0 0 0-2.13-4.736.75.75 0 0 1-.037-1.097m-2.12 2.12a.75.75 0 0 1 1.06 0A4.47 4.47 0 0 1 17.25 12a4.47 4.47 0 0 1-1.73 3.713.75.75 0 0 1-1.02-1.097A2.97 2.97 0 0 0 15.75 12a2.97 2.97 0 0 0-1.25-2.463.75.75 0 0 1-.037-1.25z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        )}
       </section>
     </main>
   );
