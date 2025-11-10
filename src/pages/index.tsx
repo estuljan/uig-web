@@ -20,6 +20,15 @@ type HomeProps = {
 
 const CMS_BASE_URL = "https://admin.uig.me";
 const WORDS_ENDPOINT = `${CMS_BASE_URL}/api/words?depth=1`;
+const FALLBACK_WORDS: Word[] = [
+  {
+    id: "fallback-1",
+    word_uyghur: "salam",
+    word_english: "hello",
+    word_turkish: "merhaba",
+    pronunciation: null,
+  },
+];
 
 const resolvePronunciationUrl = (
   pronunciation: Word["pronunciation"]
@@ -61,15 +70,30 @@ const resolvePronunciationUrl = (
 };
 
 export const getStaticProps: GetStaticProps<HomeProps> = async () => {
-  const response = await fetch(WORDS_ENDPOINT);
-  const data: PayloadResponse = await response.json();
+  try {
+    const response = await fetch(WORDS_ENDPOINT);
 
-  return {
-    props: {
-      words: data.docs ?? [],
-    },
-    revalidate: 60,
-  };
+    if (!response.ok) {
+      throw new Error(`CMS responded with ${response.status}`);
+    }
+
+    const data: PayloadResponse = await response.json();
+
+    return {
+      props: {
+        words: data.docs ?? FALLBACK_WORDS,
+      },
+      revalidate: 60,
+    };
+  } catch (error) {
+    console.error("Failed to fetch glossary words from CMS", error);
+    return {
+      props: {
+        words: FALLBACK_WORDS,
+      },
+      revalidate: 60,
+    };
+  }
 };
 
 export default function Home({ words }: HomeProps) {
