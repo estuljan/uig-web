@@ -181,57 +181,68 @@ export default function Home({ words }: HomeProps) {
         />
 
         <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-100 bg-white">
-          {filteredWords.map((word) => {
-            const pronunciationUrl = resolvePronunciationUrl(
-              word.pronunciation
-            );
+          {filteredWords.length === 0 ? (
+            <li className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+              <p className="text-lg font-semibold text-zinc-900">
+                No matching entries yet
+              </p>
+              <p className="text-sm text-zinc-500">
+                Try another keyword or clear the search to see the full list.
+              </p>
+            </li>
+          ) : (
+            filteredWords.map((word) => {
+              const pronunciationUrl = resolvePronunciationUrl(
+                word.pronunciation
+              );
 
-            return (
-              <li
-                key={word.id}
-                className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="text-xl font-medium text-zinc-900">
-                    {word.word_uyghur}
-                  </p>
-                  <p className="text-sm text-zinc-500">
-                    Turkish: {word.word_turkish}
-                  </p>
-                </div>
-                <div className="flex flex-col items-start gap-2 text-left sm:items-end sm:text-right">
-                  <p className="text-lg font-semibold text-emerald-600">
-                    {word.word_english}
-                  </p>
-                  {pronunciationUrl && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handlePronunciationToggle(word.id, pronunciationUrl)
-                      }
-                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
-                        activeAudioId === word.id
-                          ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                          : "border-emerald-100 text-emerald-600 hover:bg-emerald-50"
-                      }`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`h-2 w-2 rounded-full ${
+              return (
+                <li
+                  key={word.id}
+                  className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-xl font-medium text-zinc-900">
+                      {word.word_uyghur}
+                    </p>
+                    <p className="text-sm text-zinc-500">
+                      Turkish: {word.word_turkish}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-start gap-2 text-left sm:items-end sm:text-right">
+                    <p className="text-lg font-semibold text-emerald-600">
+                      {word.word_english}
+                    </p>
+                    {pronunciationUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handlePronunciationToggle(word.id, pronunciationUrl)
+                        }
+                        className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
                           activeAudioId === word.id
-                            ? "bg-emerald-600"
-                            : "bg-emerald-400"
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                            : "border-emerald-100 text-emerald-600 hover:bg-emerald-50"
                         }`}
-                      />
-                      {activeAudioId === word.id
-                        ? "Stop pronunciation"
-                        : "Play pronunciation"}
-                    </button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`h-2 w-2 rounded-full ${
+                            activeAudioId === word.id
+                              ? "bg-emerald-600"
+                              : "bg-emerald-400"
+                          }`}
+                        />
+                        {activeAudioId === word.id
+                          ? "Stop pronunciation"
+                          : "Play pronunciation"}
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })
+          )}
         </ul>
       </section>
     </main>
