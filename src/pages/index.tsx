@@ -1,4 +1,5 @@
 import type { GetStaticProps } from "next";
+import Head from "next/head";
 import { Geist, Geist_Mono } from "next/font/google";
 import { useEffect, useRef, useState } from "react";
 
@@ -17,6 +18,57 @@ const geistMono = Geist_Mono({
 type HomeProps = {
   words: Word[];
 };
+
+const DEFAULT_SITE_URL = "https://uig.me";
+const sanitizeBaseUrl = (rawUrl: string) => {
+  const trimmed = rawUrl.trim();
+
+  if (!trimmed) {
+    return DEFAULT_SITE_URL;
+  }
+
+  const normalize = (value: string) => {
+    const withoutTrailingSlash = value.endsWith("/")
+      ? value.slice(0, -1)
+      : value;
+
+    try {
+      const url = new URL(withoutTrailingSlash);
+      return url.origin;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const normalized = normalize(trimmed) ?? normalize(`https://${trimmed}`);
+
+  if (normalized) {
+    return normalized;
+  }
+
+  const fallback = trimmed.replace(/\/$/, "");
+  return fallback.length > 0 ? fallback : DEFAULT_SITE_URL;
+};
+
+const SITE_URL = sanitizeBaseUrl(
+  process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.SITE_URL ??
+    DEFAULT_SITE_URL
+);
+const CANONICAL_URL = `${SITE_URL}/`;
+const OG_IMAGE_URL = `${SITE_URL}/globe.svg`;
+const SITE_NAME = "UIG Uyghur Dictionary";
+const SEO_TITLE = "Uyghur Dictionary | Uyghur-English-Turkish Word Finder";
+const SEO_DESCRIPTION =
+  "Discover Uyghur vocabulary with fast bilingual search, trusted translations, and high-quality pronunciations in this Uyghur-English-Turkish dictionary.";
+const SEO_KEYWORDS = [
+  "Uyghur dictionary",
+  "Uyghur English dictionary",
+  "Uyghur Turkish dictionary",
+  "Uyghur pronunciation",
+  "Uyghur vocabulary",
+  "Turkic language learning",
+].join(", ");
 
 const DEFAULT_CMS_BASE_URL = "https://admin.uig.me";
 const CMS_BASE_URL = (() => {
@@ -165,18 +217,87 @@ export default function Home({ words }: HomeProps) {
   const hasSearchTerm = normalizedSearchTerm.trim().length > 0;
   const visibleWords = hasSearchTerm ? filteredWords : [];
 
+  const structuredData = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      url: CANONICAL_URL,
+      name: SITE_NAME,
+      inLanguage: ["ug", "en", "tr"],
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${CANONICAL_URL}?q={search_term_string}`,
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "DefinedTermSet",
+      name: SITE_NAME,
+      description: SEO_DESCRIPTION,
+      url: CANONICAL_URL,
+      hasDefinedTerm: words.slice(0, 5).map((word) => {
+        const description: string[] = [`English: ${word.word_english}`];
+
+        if (word.word_turkish) {
+          description.push(`Turkish: ${word.word_turkish}`);
+        }
+
+        return {
+          "@type": "DefinedTerm",
+          name: word.word_uyghur,
+          inLanguage: "ug",
+          description: description.join(". "),
+          url: `${CANONICAL_URL}#word-${word.id}`,
+        };
+      }),
+    },
+  ];
+
   return (
-    <main
-      className={`${geistSans.className} ${geistMono.className} flex min-h-screen items-center justify-center bg-zinc-50 px-6 py-12 text-zinc-900`}
-    >
-      <section className="w-full max-w-2xl space-y-6">
-        <input
-          type="text"
-          placeholder="Search in Uyghur or English..."
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-4 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20"
+    <>
+      <Head>
+        <title>{SEO_TITLE}</title>
+        <meta name="description" content={SEO_DESCRIPTION} />
+        <meta name="keywords" content={SEO_KEYWORDS} />
+        <meta name="application-name" content={SITE_NAME} />
+        <meta name="apple-mobile-web-app-title" content={SITE_NAME} />
+        <meta
+          name="robots"
+          content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"
         />
+        <meta name="theme-color" content="#10b981" />
+        <link rel="canonical" href={CANONICAL_URL} />
+        <link rel="alternate" hrefLang="en" href={CANONICAL_URL} />
+        <link rel="alternate" hrefLang="ug" href={CANONICAL_URL} />
+        <link rel="alternate" hrefLang="tr" href={CANONICAL_URL} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={SEO_TITLE} />
+        <meta property="og:description" content={SEO_DESCRIPTION} />
+        <meta property="og:url" content={CANONICAL_URL} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:image" content={OG_IMAGE_URL} />
+        <meta property="og:locale" content="en_US" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={SEO_TITLE} />
+        <meta name="twitter:description" content={SEO_DESCRIPTION} />
+        <meta name="twitter:image" content={OG_IMAGE_URL} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
+      </Head>
+      <main
+        className={`${geistSans.className} ${geistMono.className} flex min-h-screen items-center justify-center bg-zinc-50 px-6 py-12 text-zinc-900`}
+      >
+        <section className="w-full max-w-2xl space-y-6">
+          <input
+            type="text"
+            placeholder="Search in Uyghur or English..."
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-4 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20"
+          />
 
         {hasSearchTerm && (
           <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-100 bg-white">
@@ -193,6 +314,7 @@ export default function Home({ words }: HomeProps) {
                 return (
                   <li
                     key={word.id}
+                    id={`word-${word.id}`}
                     className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
@@ -248,6 +370,7 @@ export default function Home({ words }: HomeProps) {
           </ul>
         )}
       </section>
-    </main>
+      </main>
+    </>
   );
 }
