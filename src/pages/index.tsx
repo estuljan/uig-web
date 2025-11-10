@@ -56,7 +56,7 @@ const SITE_URL = sanitizeBaseUrl(
     DEFAULT_SITE_URL
 );
 const CANONICAL_URL = `${SITE_URL}/`;
-const OG_IMAGE_URL = `${SITE_URL}/globe.svg`;
+const OG_IMAGE_URL = `${SITE_URL}/og-uyghur-dictionary.png`;
 const SITE_NAME = "UIG Uyghur Dictionary";
 const SEO_TITLE = "Uyghur Dictionary | Uyghur-English-Turkish Word Finder";
 const SEO_DESCRIPTION =
