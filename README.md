@@ -1,6 +1,11 @@
 ## Uyghur Interactive Glossary
 
-UIG Web is a Next.js 16 (Pages Router) app that renders the Uyghur Interactive Glossary. The landing page (`src/pages/index.tsx`) statically fetches vocabulary from the Payload CMS running at `https://admin.uig.me` (or any endpoint you configure) and showcases Uyghur, English, and Turkish translations with optional pronunciation audio. Tailwind CSS v4 styles live in `src/styles/globals.css`.
+UIG Web is the production home of the Uyghur Interactive Glossary—our online Uyghur dictionary that surfaces Uyghur terms alongside their English and Turkish translations plus optional pronunciation audio. The site is built with Next.js 16 (Pages Router); the landing page (`src/pages/index.tsx`) statically fetches vocabulary from the Payload CMS running at `https://admin.uig.me` (or any endpoint you configure) and renders dictionary entries with Tailwind CSS v4 styling (`src/styles/globals.css`).
+
+**Why this repository exists**
+- Provide a fast, searchable Uyghur dictionary that works on desktop and mobile.
+- Keep Uyghur, English, and Turkish translations synchronized from the CMS so editors can maintain entries without redeploys.
+- Offer pronunciation audio to help learners hear the correct Uyghur pronunciation.
 
 ---
 

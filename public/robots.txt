@@ -1,0 +1,4 @@
+# robots.txt for Uyghur Interactive Glossary
+User-agent: *
+Allow: /
+
