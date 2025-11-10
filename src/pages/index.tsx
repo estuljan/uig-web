@@ -18,7 +18,16 @@ type HomeProps = {
   words: Word[];
 };
 
-const CMS_BASE_URL = "https://admin.uig.me";
+const DEFAULT_CMS_BASE_URL = "https://admin.uig.me";
+const CMS_BASE_URL = (() => {
+  const envUrl =
+    process.env.NEXT_PUBLIC_CMS_BASE_URL ??
+    process.env.CMS_BASE_URL ??
+    DEFAULT_CMS_BASE_URL;
+
+  const sanitizedUrl = envUrl.trim().replace(/\/$/, "");
+  return sanitizedUrl.length > 0 ? sanitizedUrl : DEFAULT_CMS_BASE_URL;
+})();
 const WORDS_ENDPOINT = `${CMS_BASE_URL}/api/words?depth=1`;
 const FALLBACK_WORDS: Word[] = [
   {
