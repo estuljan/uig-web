@@ -3,6 +3,15 @@ export interface Word {
   word_uyghur: string;
   word_english: string;
   word_turkish: string;
+  pronunciation?: PayloadMedia | string | null;
+}
+
+export interface PayloadMedia {
+  id?: string;
+  filename?: string;
+  mimeType?: string;
+  filesize?: number;
+  url?: string;
 }
 
 export interface PayloadResponse {

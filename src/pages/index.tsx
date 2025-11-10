@@ -1,6 +1,6 @@
 import type { GetStaticProps } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { PayloadResponse, Word } from "@/interfaces/word";
 
@@ -18,8 +18,50 @@ type HomeProps = {
   words: Word[];
 };
 
+const CMS_BASE_URL = "https://admin.uig.me";
+const WORDS_ENDPOINT = `${CMS_BASE_URL}/api/words?depth=1`;
+
+const resolvePronunciationUrl = (
+  pronunciation: Word["pronunciation"]
+): string | undefined => {
+  if (!pronunciation) {
+    return undefined;
+  }
+
+  const normalizeUrl = (path: string) => {
+    if (!path) {
+      return undefined;
+    }
+
+    if (path.startsWith("http")) {
+      return path;
+    }
+
+    const normalizedPath = path.startsWith("/")
+      ? path
+      : path.startsWith("media/")
+        ? `/${path}`
+        : `/media/${path}`;
+    return `${CMS_BASE_URL}${normalizedPath}`;
+  };
+
+  if (typeof pronunciation === "string") {
+    return normalizeUrl(pronunciation);
+  }
+
+  if (pronunciation.url) {
+    return normalizeUrl(pronunciation.url);
+  }
+
+  if (pronunciation.filename) {
+    return normalizeUrl(pronunciation.filename);
+  }
+
+  return undefined;
+};
+
 export const getStaticProps: GetStaticProps<HomeProps> = async () => {
-  const response = await fetch("https://admin.uig.me/api/words");
+  const response = await fetch(WORDS_ENDPOINT);
   const data: PayloadResponse = await response.json();
 
   return {
@@ -31,7 +73,56 @@ export const getStaticProps: GetStaticProps<HomeProps> = async () => {
 };
 
 export default function Home({ words }: HomeProps) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof Audio === "undefined") {
+      return;
+    }
+
+    const audioElement = new Audio();
+    const handleEnded = () => setActiveAudioId(null);
+
+    audioElement.addEventListener("ended", handleEnded);
+    audioRef.current = audioElement;
+
+    return () => {
+      audioElement.removeEventListener("ended", handleEnded);
+      audioElement.pause();
+      audioRef.current = null;
+    };
+  }, []);
+
+  const handlePronunciationToggle = (wordId: string, audioUrl: string) => {
+    const audioElement = audioRef.current;
+
+    if (!audioElement) {
+      return;
+    }
+
+    if (activeAudioId) {
+      audioElement.pause();
+      audioElement.currentTime = 0;
+    }
+
+    if (activeAudioId === wordId) {
+      setActiveAudioId(null);
+      return;
+    }
+
+    audioElement.src = audioUrl;
+
+    void audioElement
+      .play()
+      .then(() => setActiveAudioId(wordId))
+      .catch((error) => {
+        console.error("Unable to play pronunciation audio", error);
+        setActiveAudioId(null);
+      });
+  };
+
   const normalizedSearchTerm = searchTerm.toLowerCase();
   const filteredWords = words.filter(
     ({ word_uyghur, word_english }) =>
@@ -66,19 +157,57 @@ export default function Home({ words }: HomeProps) {
         />
 
         <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-100 bg-white">
-          {filteredWords.map((word) => (
-            <li key={word.id} className="flex flex-col gap-1 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xl font-medium text-zinc-900">
-                  {word.word_uyghur}
-                </p>
-                <p className="text-sm text-zinc-500">Turkish: {word.word_turkish}</p>
-              </div>
-              <p className="text-lg font-semibold text-emerald-600">
-                {word.word_english}
-              </p>
-            </li>
-          ))}
+          {filteredWords.map((word) => {
+            const pronunciationUrl = resolvePronunciationUrl(
+              word.pronunciation
+            );
+
+            return (
+              <li
+                key={word.id}
+                className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-xl font-medium text-zinc-900">
+                    {word.word_uyghur}
+                  </p>
+                  <p className="text-sm text-zinc-500">
+                    Turkish: {word.word_turkish}
+                  </p>
+                </div>
+                <div className="flex flex-col items-start gap-2 text-left sm:items-end sm:text-right">
+                  <p className="text-lg font-semibold text-emerald-600">
+                    {word.word_english}
+                  </p>
+                  {pronunciationUrl && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handlePronunciationToggle(word.id, pronunciationUrl)
+                      }
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
+                        activeAudioId === word.id
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                          : "border-emerald-100 text-emerald-600 hover:bg-emerald-50"
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`h-2 w-2 rounded-full ${
+                          activeAudioId === word.id
+                            ? "bg-emerald-600"
+                            : "bg-emerald-400"
+                        }`}
+                      />
+                      {activeAudioId === word.id
+                        ? "Stop pronunciation"
+                        : "Play pronunciation"}
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </section>
     </main>
