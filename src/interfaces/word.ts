@@ -17,3 +17,12 @@ export interface PayloadMedia {
 export interface PayloadResponse {
   docs: Word[];
 }
+
+export interface WordSearchResponse {
+  docs: Word[];
+  total: number;
+  page: number;
+  limit?: number;
+  totalPages?: number;
+  hasNextPage?: boolean;
+}
