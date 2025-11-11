@@ -1,9 +1,11 @@
-import type { GetStaticProps } from "next";
 import Head from "next/head";
 import { Geist, Geist_Mono } from "next/font/google";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FixedSizeList, type ListChildComponentProps } from "react-window";
+import AutoSizer from "react-virtualized-auto-sizer";
 
-import type { PayloadResponse, Word } from "@/interfaces/word";
+import type { Word } from "@/interfaces/word";
+import { useWordSearch } from "@/hooks/useWordSearch";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,10 +17,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-type HomeProps = {
-  words: Word[];
-};
-
 const DEFAULT_SITE_URL = "https://uig.me";
 const sanitizeBaseUrl = (rawUrl: string) => {
   const trimmed = rawUrl.trim();
@@ -28,9 +26,7 @@ const sanitizeBaseUrl = (rawUrl: string) => {
   }
 
   const normalize = (value: string) => {
-    const withoutTrailingSlash = value.endsWith("/")
-      ? value.slice(0, -1)
-      : value;
+    const withoutTrailingSlash = value.endsWith("/") ? value.slice(0, -1) : value;
 
     try {
       const url = new URL(withoutTrailingSlash);
@@ -51,9 +47,7 @@ const sanitizeBaseUrl = (rawUrl: string) => {
 };
 
 const SITE_URL = sanitizeBaseUrl(
-  process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.SITE_URL ??
-    DEFAULT_SITE_URL
+  process.env.NEXT_PUBLIC_SITE_URL ?? process.env.SITE_URL ?? DEFAULT_SITE_URL
 );
 const CANONICAL_URL = `${SITE_URL}/`;
 const OG_IMAGE_URL = `${SITE_URL}/og-uyghur-dictionary.png`;
@@ -80,16 +74,6 @@ const CMS_BASE_URL = (() => {
   const sanitizedUrl = envUrl.trim().replace(/\/$/, "");
   return sanitizedUrl.length > 0 ? sanitizedUrl : DEFAULT_CMS_BASE_URL;
 })();
-const WORDS_ENDPOINT = `${CMS_BASE_URL}/api/words?depth=1`;
-const FALLBACK_WORDS: Word[] = [
-  {
-    id: "fallback-1",
-    word_uyghur: "salam",
-    word_english: "hello",
-    word_turkish: "merhaba",
-    pronunciation: null,
-  },
-];
 
 const resolvePronunciationUrl = (
   pronunciation: Word["pronunciation"]
@@ -130,37 +114,106 @@ const resolvePronunciationUrl = (
   return undefined;
 };
 
-export const getStaticProps: GetStaticProps<HomeProps> = async () => {
-  try {
-    const response = await fetch(WORDS_ENDPOINT);
+const LIST_ITEM_HEIGHT = 112;
 
-    if (!response.ok) {
-      throw new Error(`CMS responded with ${response.status}`);
-    }
-
-    const data: PayloadResponse = await response.json();
-
-    return {
-      props: {
-        words: data.docs ?? FALLBACK_WORDS,
-      },
-      revalidate: 60,
-    };
-  } catch (error) {
-    console.error("Failed to fetch glossary words from CMS", error);
-    return {
-      props: {
-        words: FALLBACK_WORDS,
-      },
-      revalidate: 60,
-    };
-  }
+type WordListItemData = {
+  words: Word[];
+  activeAudioId: string | null;
+  onTogglePronunciation: (wordId: string, audioUrl: string) => void;
+  isLoadingMore: boolean;
+  isReachingEnd: boolean;
+  loadMore: () => void;
 };
 
-export default function Home({ words }: HomeProps) {
+const WordRow = ({
+  index,
+  style,
+  data,
+}: ListChildComponentProps<WordListItemData>) => {
+  const { words, activeAudioId, onTogglePronunciation, isLoadingMore, isReachingEnd, loadMore } = data;
+
+  if (index === words.length) {
+    return (
+      <div style={style} className="flex items-center justify-center px-6 py-4">
+        {isReachingEnd ? (
+          <p className="text-sm text-zinc-400">No more results.</p>
+        ) : (
+          <button
+            type="button"
+            onClick={loadMore}
+            className="inline-flex items-center gap-2 rounded-full border border-emerald-200 px-4 py-2 text-sm font-medium text-emerald-600 transition hover:border-emerald-300 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? "Loading…" : "Load more"}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const word = words[index];
+  const pronunciationUrl = resolvePronunciationUrl(word.pronunciation);
+
+  return (
+    <div
+      style={style}
+      className="flex flex-col justify-center gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+      id={`word-${word.id}`}
+    >
+      <div>
+        <p className="text-xl font-medium text-zinc-900">{word.word_uyghur}</p>
+        {word.word_turkish && (
+          <p className="text-sm text-zinc-500">Turkish: {word.word_turkish}</p>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <p className="text-lg font-semibold text-emerald-600">{word.word_english}</p>
+        {pronunciationUrl && (
+          <button
+            type="button"
+            onClick={() => onTogglePronunciation(word.id, pronunciationUrl)}
+            aria-label={
+              activeAudioId === word.id ? "Stop pronunciation" : "Play pronunciation"
+            }
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
+              activeAudioId === word.id
+                ? "border-emerald-500 bg-emerald-50 text-emerald-600"
+                : "border-emerald-100 text-emerald-600 hover:bg-emerald-50"
+            }`}
+          >
+            <span className="sr-only">
+              {activeAudioId === word.id ? "Stop pronunciation" : "Play pronunciation"}
+            </span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="h-5 w-5"
+              aria-hidden="true"
+            >
+              <path d="M3 9.75a.75.75 0 0 1 .75-.75h2.69l2.87-2.869A1.5 1.5 0 0 1 11.379 7.5v9a1.5 1.5 0 0 1-2.07 1.389L6.44 15H3.75A.75.75 0 0 1 3 14.25zm13.58-3.583a.75.75 0 0 1 1.06 0A7.47 7.47 0 0 1 20.25 12a7.47 7.47 0 0 1-2.61 5.833.75.75 0 0 1-1.02-1.097A5.97 5.97 0 0 0 18.75 12a5.97 5.97 0 0 0-2.13-4.736.75.75 0 0 1-.037-1.097m-2.12 2.12a.75.75 0 0 1 1.06 0A4.47 4.47 0 0 1 17.25 12a4.47 4.47 0 0 1-1.73 3.713.75.75 0 0 1-1.02-1.097A2.97 2.97 0 0 0 15.75 12a2.97 2.97 0 0 0-1.25-2.463.75.75 0 0 1-.037-1.25z" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default function Home() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
+
+  const {
+    words,
+    error,
+    isEmpty,
+    isLoadingInitialData,
+    isLoadingMore,
+    isReachingEnd,
+    loadMore,
+  } = useWordSearch(searchTerm);
 
   useEffect(() => {
     if (typeof Audio === "undefined") {
@@ -180,7 +233,7 @@ export default function Home({ words }: HomeProps) {
     };
   }, []);
 
-  const handlePronunciationToggle = (wordId: string, audioUrl: string) => {
+  const handlePronunciationToggle = useCallback((wordId: string, audioUrl: string) => {
     const audioElement = audioRef.current;
 
     if (!audioElement) {
@@ -202,57 +255,84 @@ export default function Home({ words }: HomeProps) {
     void audioElement
       .play()
       .then(() => setActiveAudioId(wordId))
-      .catch((error) => {
-        console.error("Unable to play pronunciation audio", error);
+      .catch((playError) => {
+        console.error("Unable to play pronunciation audio", playError);
         setActiveAudioId(null);
       });
-  };
+  }, [activeAudioId]);
 
-  const normalizedSearchTerm = searchTerm.toLowerCase();
-  const filteredWords = words.filter(
-    ({ word_uyghur, word_english }) =>
-      word_uyghur.toLowerCase().includes(normalizedSearchTerm) ||
-      word_english.toLowerCase().includes(normalizedSearchTerm)
-  );
-  const hasSearchTerm = normalizedSearchTerm.trim().length > 0;
-  const visibleWords = hasSearchTerm ? filteredWords : [];
+  const hasSearchTerm = searchTerm.trim().length > 0;
 
-  const structuredData = [
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      url: CANONICAL_URL,
-      name: SITE_NAME,
-      inLanguage: ["ug", "en", "tr"],
-      potentialAction: {
-        "@type": "SearchAction",
-        target: `${CANONICAL_URL}?q={search_term_string}`,
-        "query-input": "required name=search_term_string",
+  const structuredData = useMemo(() => {
+    const topWords = words.slice(0, 5);
+
+    return [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        url: CANONICAL_URL,
+        name: SITE_NAME,
+        inLanguage: ["ug", "en", "tr"],
+        potentialAction: {
+          "@type": "SearchAction",
+          target: `${CANONICAL_URL}?q={search_term_string}`,
+          "query-input": "required name=search_term_string",
+        },
       },
-    },
-    {
-      "@context": "https://schema.org",
-      "@type": "DefinedTermSet",
-      name: SITE_NAME,
-      description: SEO_DESCRIPTION,
-      url: CANONICAL_URL,
-      hasDefinedTerm: words.slice(0, 5).map((word) => {
-        const description: string[] = [`English: ${word.word_english}`];
+      {
+        "@context": "https://schema.org",
+        "@type": "DefinedTermSet",
+        name: SITE_NAME,
+        description: SEO_DESCRIPTION,
+        url: CANONICAL_URL,
+        hasDefinedTerm: topWords.map((word) => {
+          const description: string[] = [`English: ${word.word_english}`];
 
-        if (word.word_turkish) {
-          description.push(`Turkish: ${word.word_turkish}`);
-        }
+          if (word.word_turkish) {
+            description.push(`Turkish: ${word.word_turkish}`);
+          }
 
-        return {
-          "@type": "DefinedTerm",
-          name: word.word_uyghur,
-          inLanguage: "ug",
-          description: description.join(". "),
-          url: `${CANONICAL_URL}#word-${word.id}`,
-        };
-      }),
+          return {
+            "@type": "DefinedTerm",
+            name: word.word_uyghur,
+            inLanguage: "ug",
+            description: description.join(". "),
+            url: `${CANONICAL_URL}#word-${word.id}`,
+          };
+        }),
+      },
+    ];
+  }, [words]);
+
+  const handleItemsRendered = useCallback(
+    ({ visibleStopIndex }: { visibleStopIndex: number }) => {
+      if (!hasSearchTerm || isReachingEnd || isLoadingMore) {
+        return;
+      }
+
+      if (visibleStopIndex >= Math.max(0, words.length - 1)) {
+        loadMore();
+      }
     },
-  ];
+    [hasSearchTerm, isReachingEnd, isLoadingMore, loadMore, words.length]
+  );
+
+  const itemData = useMemo<WordListItemData>(() => ({
+    words,
+    activeAudioId,
+    onTogglePronunciation: handlePronunciationToggle,
+    isLoadingMore,
+    isReachingEnd,
+    loadMore,
+  }), [words, activeAudioId, handlePronunciationToggle, isLoadingMore, isReachingEnd, loadMore]);
+
+  const itemCount = useMemo(() => {
+    if (!hasSearchTerm) {
+      return 0;
+    }
+
+    return words.length + (isReachingEnd ? 0 : 1);
+  }, [hasSearchTerm, isReachingEnd, words.length]);
 
   return (
     <>
@@ -299,77 +379,45 @@ export default function Home({ words }: HomeProps) {
             className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-4 text-base text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20"
           />
 
-        {hasSearchTerm && (
-          <ul className="divide-y divide-zinc-100 rounded-2xl border border-zinc-100 bg-white">
-            {visibleWords.length === 0 ? (
-              <li className="px-6 py-10 text-center text-sm text-zinc-500">
-                No matching words found.
-              </li>
-            ) : (
-              visibleWords.map((word) => {
-                const pronunciationUrl = resolvePronunciationUrl(
-                  word.pronunciation
-                );
+          {error && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-6 py-4 text-sm text-red-600">
+              Failed to load words. Please try again later.
+            </div>
+          )}
 
-                return (
-                  <li
-                    key={word.id}
-                    id={`word-${word.id}`}
-                    className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <p className="text-xl font-medium text-zinc-900">
-                        {word.word_uyghur}
-                      </p>
-                      <p className="text-sm text-zinc-500">
-                        Turkish: {word.word_turkish}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <p className="text-lg font-semibold text-emerald-600">
-                        {word.word_english}
-                      </p>
-                      {pronunciationUrl && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handlePronunciationToggle(word.id, pronunciationUrl)
-                          }
-                          aria-label={
-                            activeAudioId === word.id
-                              ? "Stop pronunciation"
-                              : "Play pronunciation"
-                          }
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
-                            activeAudioId === word.id
-                              ? "border-emerald-500 bg-emerald-50 text-emerald-600"
-                              : "border-emerald-100 text-emerald-600 hover:bg-emerald-50"
-                          }`}
-                        >
-                          <span className="sr-only">
-                            {activeAudioId === word.id
-                              ? "Stop pronunciation"
-                              : "Play pronunciation"}
-                          </span>
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            className="h-5 w-5"
-                            aria-hidden="true"
-                          >
-                            <path d="M3 9.75a.75.75 0 0 1 .75-.75h2.69l2.87-2.869A1.5 1.5 0 0 1 11.379 7.5v9a1.5 1.5 0 0 1-2.07 1.389L6.44 15H3.75A.75.75 0 0 1 3 14.25zm13.58-3.583a.75.75 0 0 1 1.06 0A7.47 7.47 0 0 1 20.25 12a7.47 7.47 0 0 1-2.61 5.833.75.75 0 0 1-1.02-1.097A5.97 5.97 0 0 0 18.75 12a5.97 5.97 0 0 0-2.13-4.736.75.75 0 0 1-.037-1.097m-2.12 2.12a.75.75 0 0 1 1.06 0A4.47 4.47 0 0 1 17.25 12a4.47 4.47 0 0 1-1.73 3.713.75.75 0 0 1-1.02-1.097A2.97 2.97 0 0 0 15.75 12a2.97 2.97 0 0 0-1.25-2.463.75.75 0 0 1-.037-1.25z" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })
-            )}
-          </ul>
-        )}
-      </section>
+          {hasSearchTerm && (
+            <div className="min-h-[16rem] rounded-2xl border border-zinc-100 bg-white">
+              {isLoadingInitialData ? (
+                <div className="flex h-64 items-center justify-center">
+                  <p className="text-sm text-zinc-500">Searching…</p>
+                </div>
+              ) : isEmpty ? (
+                <div className="flex h-64 items-center justify-center px-6 py-10 text-center text-sm text-zinc-500">
+                  No matching words found.
+                </div>
+              ) : (
+                <div className="h-[60vh] min-h-[24rem]">
+                  <AutoSizer>
+                    {({ height, width }) => (
+                      <FixedSizeList
+                        height={height}
+                        width={width}
+                        itemCount={itemCount}
+                        itemSize={LIST_ITEM_HEIGHT}
+                        itemData={itemData}
+                        onItemsRendered={({ visibleStopIndex }) =>
+                          handleItemsRendered({ visibleStopIndex })
+                        }
+                      >
+                        {WordRow}
+                      </FixedSizeList>
+                    )}
+                  </AutoSizer>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
       </main>
     </>
   );
